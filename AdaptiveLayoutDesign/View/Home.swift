@@ -7,10 +7,45 @@
 
 import SwiftUI
 
+/// Tabs
+enum TabState: String, CaseIterable{
+    case home = "Home"
+    case search = "Search"
+    case notifications = "Notifications"
+    case profile = "Profile"
+    
+    var symbolImage: String {
+        switch self {
+        case .home: "house"
+        case .search: "magnifyingglass"
+        case .notifications: "bell"
+        case .profile: "person.crop.circle"
+        }
+    }
+}
+
 struct Home: View {
+    /// View Properties
+    @State private var activeTab: TabState = .home
     var body: some View {
-        SideBarView()
-            .frame(width: 250)
+        TabView(selection: $activeTab){
+            
+            Tab(TabState.home.rawValue, systemImage: TabState.home.symbolImage, value: .home){
+                Text("Home")
+            }
+            
+            Tab(TabState.search.rawValue, systemImage: TabState.search.symbolImage, value: .search){
+                Text("Search")
+            }
+            
+            Tab(TabState.notifications.rawValue, systemImage: TabState.notifications.symbolImage, value: .notifications){
+                Text("Notifications")
+            }
+            
+            Tab(TabState.profile.rawValue, systemImage: TabState.profile.symbolImage, value: .profile){
+                Text("Profile")
+            }
+        }
     }
 }
 
