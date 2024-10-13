@@ -31,18 +31,28 @@ struct Home: View {
     @State private var offset: CGFloat = 0
     @State private var lastDragOffset: CGFloat = 0
     @State private var progress: CGFloat = 0
+    @State private var panGesture: UIPanGestureRecognizer?
+    
+    /// Navigation Path
+    @State private var navigationPath: NavigationPath = .init()
     
     var body: some View {
-        GeometryReader{
-            let size = $0.size
-            let sideBarWidth: CGFloat = 250
+        AdaptiveView{ size, isLandscape in
             
-            ZStack(alignment: .leading){
+            let sideBarWidth: CGFloat = isLandscape ? 220 : 250
+            let layout = isLandscape ?
+            AnyLayout(HStackLayout(spacing: 0)) :
+            AnyLayout(ZStackLayout(alignment: .leading))
+            
+            NavigationStack(path: $navigationPath){
+            layout{
                 
-                SideBarView()
+                SideBarView(path: $navigationPath){
+                    toggleSideBar()
+                }
                     .frame(width: sideBarWidth)
-                    .offset(x: -sideBarWidth)
-                    .offset(x: offset)
+                    .offset(x: isLandscape ? 0 : -sideBarWidth)
+                    .offset(x: isLandscape ? 0 : offset)
                 TabView(selection: $activeTab){
                     
                     Tab(TabState.home.rawValue, systemImage: TabState.home.symbolImage, value: .home){
@@ -61,16 +71,18 @@ struct Home: View {
                         Text("Profile")
                     }
                 }
+                .tabViewStyle(.tabBarOnly)
                 .overlay{
                     Rectangle()
                         .fill(.black.opacity(0.25))
                         .ignoresSafeArea()
-                        .opacity(progress)
+                        .opacity(isLandscape ? 0 : progress)
                 }
-                .offset(x: offset)
+                .offset(x: isLandscape ? 0 : offset)
             }
             .gesture(
-                CustomGesture{ gesture in
+                CustomGesture(isEnabled: !isLandscape){ gesture in
+                    if panGesture == nil { panGesture = gesture }
                     let state = gesture.state
                     let translation = gesture.translation(in: gesture.view).x + lastDragOffset
                     let velocity = gesture.velocity(in: gesture.view).x
@@ -99,14 +111,37 @@ struct Home: View {
                         /// Saving Last Drag Offset
                         lastDragOffset = offset
                     }
-                    }
+                }
             )
+            .onChange(of: isLandscape) { oldValue, newValue in
+                panGesture?.isEnabled = !newValue
+            }
+            .navigationDestination(for: String.self){ value in
+                Text("Hello, This is Detail \(value) View")
+                    .navigationTitle(value)
+                
+            }
+        }
+        }
+        
+    }
+    
+    func toggleSideBar(){
+        withAnimation(.snappy(duration: 0.25, extraBounce: 0)){
+            progress = 0
+            offset = 0
+            lastDragOffset = 0
         }
     }
 }
 
 struct SideBarView: View {
+    @Binding var path: NavigationPath
+    var toggleSideBar: () -> ()
     var body: some View{
+        GeometryReader{
+            let safeArea = $0.safeAreaInsets
+            let isSidesHavingValues = safeArea.leading != 0 || safeArea.trailing != 0
         ScrollView(.vertical){
             VStack(alignment: .leading, spacing: 6){
                 
@@ -119,7 +154,7 @@ struct SideBarView: View {
                 Text("Luomy")
                     .font(.callout)
                     .fontWeight(.semibold)
-
+                
                 Text("@luomy")
                     .font(.caption2)
                     .foregroundStyle(.gray)
@@ -145,17 +180,32 @@ struct SideBarView: View {
                 VStack(alignment: .leading, spacing: 20){
                     ForEach(SideBarAction.allCases, id: \.rawValue){action in
                         SideBarActionButton(value: action){
-                            
+                            toggleSideBar()
+                            /// You can even pass the entire action here (by conforming it as a Hashable) and push views based on it, but we just pass the rawValue (String) and using it as a navigation title for now
+                            path.append(action.rawValue)
                         }
                     }
                 }
                 .padding(.top, 25)
                 
-            }.padding(15)
+            }
+            .padding(.vertical, 15)
+            .padding(.horizontal, isSidesHavingValues ? 5 : 15)
             
         }
         .scrollClipDisabled()
         .scrollIndicators(.hidden)
+        .background{
+            Rectangle()
+                .fill(.background)
+                .overlay(alignment: .trailing) {
+                    Rectangle()
+                        .fill(.gray.opacity(0.35))
+                        .frame(width: 1)
+                }
+                .ignoresSafeArea()
+        }
+    }
     }
     
     @ViewBuilder
@@ -202,6 +252,7 @@ enum SideBarAction: String, CaseIterable{
 
 /// Custom Gesture
 struct CustomGesture: UIGestureRecognizerRepresentable{
+    var isEnabled: Bool
     var handle: (UIPanGestureRecognizer) -> ()
     func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer{
         let gesture = UIPanGestureRecognizer()
@@ -209,11 +260,26 @@ struct CustomGesture: UIGestureRecognizerRepresentable{
     }
     
     func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) {
-        
+        recognizer.isEnabled = isEnabled
     }
     
     func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
         handle(recognizer)
+    }
+}
+
+/// Adaptive View
+struct AdaptiveView<Content: View>: View {
+    var showSideBarOniPadPotrait: Bool = true
+    @ViewBuilder var content: (CGSize, Bool) -> Content
+    @Environment(\.horizontalSizeClass) private var hClass
+    var body: some View {
+        GeometryReader{
+            let size = $0.size
+            let isLandscape = size.width > size.height || (hClass == .regular && showSideBarOniPadPotrait)
+            
+            content(size, isLandscape)
+        }
     }
 }
 
