@@ -27,24 +27,80 @@ enum TabState: String, CaseIterable{
 struct Home: View {
     /// View Properties
     @State private var activeTab: TabState = .home
+    /// Gesture Properties
+    @State private var offset: CGFloat = 0
+    @State private var lastDragOffset: CGFloat = 0
+    @State private var progress: CGFloat = 0
+    
     var body: some View {
-        TabView(selection: $activeTab){
+        GeometryReader{
+            let size = $0.size
+            let sideBarWidth: CGFloat = 250
             
-            Tab(TabState.home.rawValue, systemImage: TabState.home.symbolImage, value: .home){
-                Text("Home")
+            ZStack(alignment: .leading){
+                
+                SideBarView()
+                    .frame(width: sideBarWidth)
+                    .offset(x: -sideBarWidth)
+                    .offset(x: offset)
+                TabView(selection: $activeTab){
+                    
+                    Tab(TabState.home.rawValue, systemImage: TabState.home.symbolImage, value: .home){
+                        Text("Home")
+                    }
+                    
+                    Tab(TabState.search.rawValue, systemImage: TabState.search.symbolImage, value: .search){
+                        Text("Search")
+                    }
+                    
+                    Tab(TabState.notifications.rawValue, systemImage: TabState.notifications.symbolImage, value: .notifications){
+                        Text("Notifications")
+                    }
+                    
+                    Tab(TabState.profile.rawValue, systemImage: TabState.profile.symbolImage, value: .profile){
+                        Text("Profile")
+                    }
+                }
+                .overlay{
+                    Rectangle()
+                        .fill(.black.opacity(0.25))
+                        .ignoresSafeArea()
+                        .opacity(progress)
+                }
+                .offset(x: offset)
             }
-            
-            Tab(TabState.search.rawValue, systemImage: TabState.search.symbolImage, value: .search){
-                Text("Search")
-            }
-            
-            Tab(TabState.notifications.rawValue, systemImage: TabState.notifications.symbolImage, value: .notifications){
-                Text("Notifications")
-            }
-            
-            Tab(TabState.profile.rawValue, systemImage: TabState.profile.symbolImage, value: .profile){
-                Text("Profile")
-            }
+            .gesture(
+                CustomGesture{ gesture in
+                    let state = gesture.state
+                    let translation = gesture.translation(in: gesture.view).x + lastDragOffset
+                    let velocity = gesture.velocity(in: gesture.view).x
+                    
+                    if state == .began || state == .changed {
+                        /// onChanged
+                        offset = max(min(translation, sideBarWidth), 0)
+                        /// Storing Drag Progress, for fading tab view when dragging
+                        progress = max(min(offset / sideBarWidth, 1), 0)
+                    }else{
+                        /// onEnded
+                        withAnimation(.snappy(duration: 0.25, extraBounce: 0)){
+                            
+                            if(velocity + offset) > (sideBarWidth * 0.5) {
+                                
+                                /// Expand Fully
+                                offset = sideBarWidth
+                                progress = 1
+                            }else{
+                                /// Reset to zero
+                                offset = 0
+                                progress = 0
+                            }
+                            
+                        }
+                        /// Saving Last Drag Offset
+                        lastDragOffset = offset
+                    }
+                    }
+            )
         }
     }
 }
@@ -142,6 +198,23 @@ enum SideBarAction: String, CaseIterable{
         }
     }
     
+}
+
+/// Custom Gesture
+struct CustomGesture: UIGestureRecognizerRepresentable{
+    var handle: (UIPanGestureRecognizer) -> ()
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer{
+        let gesture = UIPanGestureRecognizer()
+        return gesture
+    }
+    
+    func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        
+    }
+    
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        handle(recognizer)
+    }
 }
 
 #Preview {
